@@ -1,0 +1,30 @@
+﻿## ASP.NET Core ##
+bin/
+obj/
+appsettings.Development.json
+*.userprefs
+*.db
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+bld/
+[Oo]bj/
+
+# Visual Studio files
+.vs/
+*.suo
+*.user
+
+# NuGet packages
+.nuget/
+packages/
+
+# Test results
+TestResults/
+*.trx
+
+# Local development files
+*.local
+*.local.settings.json

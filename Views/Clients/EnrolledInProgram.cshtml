@@ -1,0 +1,46 @@
+@model IEnumerable<HealthSystem.Models.Client>
+
+@{
+    ViewData["Title"] = "Clients Enrolled in " + ViewBag.ProgramName;
+}
+
+<div class="container">
+    <h2>@ViewData["Title"]</h2>
+    <hr />
+
+    @if (Model != null && Model.Any())
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>First Name</th>
+                    <th>Last Name</th>
+                    <th>Date of Birth</th>
+                    <th>Phone Number</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var client in Model)
+                {
+                    <tr>
+                        <td>@Html.DisplayFor(modelItem => client.FirstName)</td>
+                        <td>@Html.DisplayFor(modelItem => client.LastName)</td>
+                        <td>@client.DateOfBirth.ToShortDateString()</td>
+                        <td>@Html.DisplayFor(modelItem => client.PhoneNumber)</td>
+                        <td>
+                            <a asp-action="Details" asp-route-id="@client.Id" class="btn btn-sm btn-info">Details</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <a asp-action="Index" class="btn btn-secondary">Back to Client List</a>
+        <a asp-action="DownloadEnrolledClientsPdf" asp-route-programId="@ViewBag.ProgramId" class="btn btn-primary">Download as PDF</a>
+    }
+    else
+    {
+        <p>No clients are enrolled in @ViewBag.ProgramName.</p>
+        <a asp-action="Index" class="btn btn-secondary">Back to Client List</a>
+    }
+</div>

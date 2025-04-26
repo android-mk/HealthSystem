@@ -19,3 +19,15 @@ ASP.NET Core health information management system
 - Entity Framework Core
 - SQL Server
 - iTextPDF
+  ## 📊 System Presentation
+
+[![Download PowerPoint](https://img.shields.io/badge/Download-Presentation-217346?style=for-the-badge&logo=microsoft-powerpoint)](https://github.com/android-mk/HealthSystem/raw/master/HealthSystem.pptx)
+
+**Features covered:**
+- Client management workflow
+- Program enrollment system
+- PDF export functionality
+- API documentation
+
+> **Note:** Right-click → "Save link as" for direct download  
+> File size: 2.4MB | Last updated: August 2024

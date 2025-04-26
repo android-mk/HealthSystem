@@ -28,6 +28,3 @@ ASP.NET Core health information management system
 - Program enrollment system
 - PDF export functionality
 - API documentation
-
-> **Note:** Right-click → "Save link as" for direct download  
-> File size: 2.4MB | Last updated: August 2024

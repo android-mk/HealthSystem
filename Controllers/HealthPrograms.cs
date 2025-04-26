@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
-using HealthSystem.Data; // Add this
+using HealthSystem.Data;
 using HealthSystem.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Threading.Tasks;
 
-namespace HealthSystem.Controllers // Add namespace
+namespace HealthSystem.Controllers
 {
     public class HealthProgramsController : Controller
     {
@@ -38,6 +39,79 @@ namespace HealthSystem.Controllers // Add namespace
         public async Task<IActionResult> Index()
         {
             return View(await _context.HealthPrograms.ToListAsync());
+        }
+
+        public async Task<IActionResult> Details(int? id)
+        {
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            var healthProgram = await _context.HealthPrograms
+                .FirstOrDefaultAsync(m => m.Id == id);
+
+            if (healthProgram == null)
+            {
+                return NotFound();
+            }
+
+            return View(healthProgram);
+        }
+
+        // GET: HealthPrograms/Edit/1
+        public async Task<IActionResult> Edit(int? id)
+        {
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            var healthProgram = await _context.HealthPrograms.FindAsync(id);
+            if (healthProgram == null)
+            {
+                return NotFound();
+            }
+            return View(healthProgram);
+        }
+
+        // POST: HealthPrograms/Edit/1
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(int id, [Bind("Id,Name,Description")] HealthProgram program)
+        {
+            if (id != program.Id)
+            {
+                return NotFound();
+            }
+
+            if (ModelState.IsValid)
+            {
+                try
+                {
+                    _context.Update(program);
+                    await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    if (!HealthProgramExists(program.Id))
+                    {
+                        return NotFound();
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+                return RedirectToAction(nameof(Index));
+            }
+            return View(program);
+        }
+
+        private bool HealthProgramExists(int id)
+        {
+            return _context.HealthPrograms.Any(e => e.Id == id);
         }
     }
 }

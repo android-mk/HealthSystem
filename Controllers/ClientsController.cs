@@ -201,108 +201,239 @@ namespace HealthSystem.Controllers
             var clientsInProgram = await _context.ClientHealthPrograms
                 .Where(chp => chp.HealthProgramId == programId)
                 .Include(chp => chp.Client)
-                    .ThenInclude(c => c.EnrolledPrograms) // Include for potential further details
+                    .ThenInclude(c => c.EnrolledPrograms)
                         .ThenInclude(e => e.HealthProgram)
                 .Select(chp => chp.Client)
                 .ToListAsync();
 
             ViewBag.ProgramName = program.Name;
+            ViewBag.ProgramId = programId;
             return View(clientsInProgram);
         }
-        // GET: Clients/DownloadDetailsPdf/{id}
-        public async Task<IActionResult> DownloadDetailsPdf(int? id)
+        //For Client List PDF
+        [HttpGet("DownloadClientsListPdf")]
+        public async Task<IActionResult> DownloadClientsListPdf(string searchString)
         {
-            if (id == null)
+            var clientsQuery = _context.Clients.AsQueryable();
+
+            if (!string.IsNullOrEmpty(searchString))
             {
-                return NotFound();
+                clientsQuery = clientsQuery.Where(c =>
+                    c.LastName.Contains(searchString) ||
+                    c.FirstName.Contains(searchString));
             }
+
+            var clients = await clientsQuery.ToListAsync();
+
+            try
+            {
+                using var ms = new MemoryStream();
+                var pdfDoc = new PdfDocument(new PdfWriter(ms));
+                using var document = new Document(pdfDoc);
+
+                // Title
+                document.Add(new Paragraph("Client List")
+                    .SetTextAlignment(TextAlignment.CENTER)
+                    .SetFontSize(20));
+
+                document.Add(new Paragraph($"Generated on: {DateTime.Now:yyyy-MM-dd}")
+                    .SetTextAlignment(TextAlignment.CENTER)
+                    .SetFontSize(10));
+
+                if (!string.IsNullOrEmpty(searchString))
+                {
+                    document.Add(new Paragraph($"Filter: {searchString}")
+                        .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_OBLIQUE))
+                        .SetFontColor(ColorConstants.GRAY));
+                }
+
+                // Create table with 5 columns
+                var table = new Table(5)
+                    .UseAllAvailableWidth()
+                    .SetMarginTop(20);
+
+                // Header row
+                table.AddHeaderCell("First Name");
+                table.AddHeaderCell("Last Name");
+                table.AddHeaderCell("Date of Birth");
+                table.AddHeaderCell("Phone");
+                table.AddHeaderCell("Program Count");
+
+                // Data rows
+                foreach (var client in clients)
+                {
+                    table.AddCell(client.FirstName);
+                    table.AddCell(client.LastName);
+                    table.AddCell(client.DateOfBirth.ToShortDateString());
+                    table.AddCell(client.PhoneNumber ?? "N/A");
+                    table.AddCell((await _context.ClientHealthPrograms
+                        .CountAsync(chp => chp.ClientId == client.Id))
+                        .ToString());
+                }
+
+                document.Add(table);
+                document.Close();
+
+                return File(ms.ToArray(), "application/pdf",
+                    $"ClientsList_{DateTime.Now:yyyyMMdd}.pdf");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Client list PDF generation failed");
+                return StatusCode(500, "PDF generation error");
+            }
+        }
+        //For Client Details PDF
+        [HttpGet("DownloadClientDetailsPdf/{id}")]
+        public async Task<IActionResult> DownloadClientDetailsPdf(int? id)
+        {
+            if (id == null) return NotFound();
 
             var client = await _context.Clients
                 .Include(c => c.EnrolledPrograms)
                     .ThenInclude(ep => ep.HealthProgram)
                 .FirstOrDefaultAsync(c => c.Id == id);
 
-            if (client == null)
-            {
-                return NotFound();
-            }
+            if (client == null) return NotFound();
 
             try
             {
-                byte[] pdfBytes = GenerateClientDetailsPdf(client);
-                return File(pdfBytes, "application/pdf", $"ClientDetails_{client.FirstName}_{client.LastName}.pdf");
+                using var ms = new MemoryStream();
+                var pdfDoc = new PdfDocument(new PdfWriter(ms));
+                using var document = new Document(pdfDoc);
+
+                // Title
+                document.Add(new Paragraph($"Client: {client.FirstName} {client.LastName}")
+                    .SetTextAlignment(TextAlignment.CENTER)
+                    .SetFontSize(20));
+
+                document.Add(new Paragraph($"Generated on: {DateTime.Now:yyyy-MM-dd}")
+                    .SetTextAlignment(TextAlignment.CENTER)
+                    .SetFontSize(10));
+
+                // Client Info Table
+                var infoTable = new Table(2)
+                    .UseAllAvailableWidth()
+                    .SetMarginTop(20);
+
+                AddPdfTableRow(infoTable, "First Name", client.FirstName);
+                AddPdfTableRow(infoTable, "Last Name", client.LastName);
+                AddPdfTableRow(infoTable, "Date of Birth", client.DateOfBirth.ToShortDateString());
+                AddPdfTableRow(infoTable, "Phone", client.PhoneNumber ?? "N/A");
+                AddPdfTableRow(infoTable, "Address", client.Address ?? "N/A");
+
+                document.Add(infoTable);
+
+                // Programs Table
+                if (client.EnrolledPrograms?.Any() == true)
+                {
+                    document.Add(new Paragraph("Enrolled Programs")
+                        .SetMarginTop(20)
+                        .SetFontSize(16));
+
+                    var programTable = new Table(2)
+                        .UseAllAvailableWidth();
+
+                    programTable.AddHeaderCell("Program Name");
+                    programTable.AddHeaderCell("Enrollment Date");
+
+                    foreach (var program in client.EnrolledPrograms.OrderBy(p => p.HealthProgram.Name))
+                    {
+                        programTable.AddCell(program.HealthProgram?.Name ?? "Unknown");
+                        programTable.AddCell(program.EnrollmentDate.ToShortDateString());
+                    }
+
+                    document.Add(programTable);
+                }
+
+                document.Close();
+                return File(ms.ToArray(), "application/pdf",
+                    $"Client_{client.LastName}_{client.Id}.pdf");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error generating PDF for client ID {ClientId}", id);
-                return StatusCode(500, "Error generating PDF document");
+                _logger.LogError(ex, "PDF generation failed for client {ClientId}", id);
+                return StatusCode(500, "PDF generation error");
             }
         }
 
-        private byte[] GenerateClientDetailsPdf(Client client)
+        private void AddPdfTableRow(Table table, string label, string value)
         {
-            using (MemoryStream ms = new MemoryStream())
-            {
-                PdfDocument pdfDoc = new PdfDocument(new PdfWriter(ms));
-                Document document = new Document(pdfDoc);
-
-                // Add title with bold style
-                Paragraph title = new Paragraph($"Client Details")
-                    .SetTextAlignment(TextAlignment.CENTER)
-                    .SetFontSize(20)
-                    .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD));
-                document.Add(title);
-
-                document.Add(new Paragraph($"Generated on: {DateTime.Now:yyyy-MM-dd HH:mm}")
-                    .SetTextAlignment(TextAlignment.CENTER)
-                    .SetFontSize(10)
-                    .SetFontColor(new DeviceRgb(128, 128, 128)));
-
-                document.Add(new Paragraph("\n"));
-
-                Table table = new Table(2, false);
-
-                AddTableRow(table, "First Name", client.FirstName);
-                AddTableRow(table, "Last Name", client.LastName);
-                AddTableRow(table, "Date of Birth", client.DateOfBirth.ToString("yyyy-MM-dd"));
-                AddTableRow(table, "Phone", client.PhoneNumber);
-
-                if (!string.IsNullOrEmpty(client.Address))
-                {
-                    AddTableRow(table, "Address", client.Address);
-                }
-
-                table.AddCell(new Cell(1, 2).Add(new Paragraph("")).SetBorder(Border.NO_BORDER));
-
-                if (client.EnrolledPrograms != null && client.EnrolledPrograms.Any())
-                {
-                    AddTableRow(table, "Enrolled Programs", "");
-                    foreach (var program in client.EnrolledPrograms)
-                    {
-                        AddTableRow(table, "",
-                            $"{program.HealthProgram?.Name} (since {program.EnrollmentDate:yyyy-MM-dd})");
-                    }
-                }
-
-                document.Add(table);
-                document.Close();
-
-                return ms.ToArray();
-            }
-        }
-
-        private void AddTableRow(Table table, string label, string value)
-        {
-            Cell labelCell = new Cell()
-                .Add(new Paragraph(label).SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD)))
-                .SetBackgroundColor(new DeviceRgb(220, 220, 220))
-                .SetPadding(5);
-            table.AddCell(labelCell);
+            var boldFont = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
 
             table.AddCell(new Cell()
-                .Add(new Paragraph(value ?? "N/A"))
-                .SetPadding(5));
-        }
+                .Add(new Paragraph(label).SetFont(boldFont))
+                .SetBackgroundColor(new DeviceRgb(240, 240, 240)));
 
+            table.AddCell(new Cell().Add(new Paragraph(value ?? "N/A")));
+        }
+        //For Enrolled Clients PDF
+        [HttpGet("DownloadEnrolledClientsPdf")]
+        public async Task<IActionResult> DownloadEnrolledClientsPdf(int programId)
+        {
+            var program = await _context.HealthPrograms.FindAsync(programId);
+            if (program == null) return NotFound();
+
+            var clients = await _context.ClientHealthPrograms
+                .Where(chp => chp.HealthProgramId == programId)
+                .Include(chp => chp.Client)
+                .OrderBy(chp => chp.Client.LastName)
+                .ToListAsync();
+
+            try
+            {
+                using var ms = new MemoryStream();
+                var pdfDoc = new PdfDocument(new PdfWriter(ms));
+                using var document = new Document(pdfDoc);
+
+                // Title
+                document.Add(new Paragraph($"Clients Enrolled in {program.Name}")
+                    .SetTextAlignment(TextAlignment.CENTER)
+                    .SetFontSize(20));
+
+                document.Add(new Paragraph($"Generated on: {DateTime.Now:yyyy-MM-dd}")
+                    .SetTextAlignment(TextAlignment.CENTER)
+                    .SetFontSize(10));
+
+                if (clients.Any())
+                {
+                    var table = new Table(4)
+                        .UseAllAvailableWidth()
+                        .SetMarginTop(20);
+
+                    // Header
+                    table.AddHeaderCell("Client Name");
+                    table.AddHeaderCell("Date of Birth");
+                    table.AddHeaderCell("Phone");
+                    table.AddHeaderCell("Enrollment Date");
+
+                    // Rows
+                    foreach (var enrollment in clients)
+                    {
+                        table.AddCell($"{enrollment.Client.LastName}, {enrollment.Client.FirstName}");
+                        table.AddCell(enrollment.Client.DateOfBirth.ToShortDateString());
+                        table.AddCell(enrollment.Client.PhoneNumber ?? "N/A");
+                        table.AddCell(enrollment.EnrollmentDate.ToShortDateString());
+                    }
+
+                    document.Add(table);
+                }
+                else
+                {
+                    document.Add(new Paragraph("No clients enrolled in this program")
+                        .SetMarginTop(20)
+                        .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_OBLIQUE))); // Italic
+                }
+
+                document.Close();
+                return File(ms.ToArray(), "application/pdf",
+                    $"{program.Name.Replace(" ", "_")}_Enrollments.pdf");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "PDF generation failed for program {ProgramId}", programId);
+                return StatusCode(500, "PDF generation error");
+            }
+        }
     }
 }

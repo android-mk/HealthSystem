@@ -39,9 +39,10 @@
         </dd>
     </dl>
     
-    <div>
-        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Edit</a>
-        <a asp-action="Enroll" asp-route-id="@Model.Id" class="btn btn-primary">Enroll in Programs</a>
-        <a asp-action="Index" class="btn btn-secondary">Back to List</a>
-    </div>
+<div>
+    <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Edit</a>
+    <a asp-action="Enroll" asp-route-id="@Model.Id" class="btn btn-primary">Enroll in Programs</a>
+    <a asp-action="DownloadClientDetailsPdf" asp-route-id="@Model.Id" class="btn btn-info">Download as PDF</a>
+    <a asp-action="Index" class="btn btn-secondary">Back to List</a>
+</div>
 </div>

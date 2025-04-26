@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using HealthSystem.Models;
 
-namespace HealthSystem.Data // Ensure proper namespace
+namespace HealthSystem.Data 
 {
     public class ApplicationDbContext : DbContext
     {
